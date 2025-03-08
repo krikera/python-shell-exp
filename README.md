@@ -14,6 +14,7 @@ This project is a lightweight command-line shell emulator written in Python. It 
   - `exit`: Exits the shell.
   - `pwd`: Prints the current working directory.
   - `echo`: Displays text on the terminal.
+  - `export`: Sets or displays environment variables.
 
 - **Command Redirection**:  
   Basic support for redirecting input, output, and errors:
@@ -22,6 +23,14 @@ This project is a lightweight command-line shell emulator written in Python. It 
   - `2>`: Redirect standard error to a file (write mode).
   - `2>>`: Redirect standard error to a file (append mode).
   - `<`: Redirect standard input from a file.
+
+- **Environment Variables**:  
+  Full support for environment variable management:
+  - Set variables using `export VAR=value`.
+  - Use variables in commands with `$VAR` or `${VAR}` syntax.
+  - Access special variables like `$$` (process ID) and `$?` (exit code).
+  - Variables persist throughout the shell session.
+  - View all variables using `export` without argument.
 
 - **External Command Execution**:  
   Executes external commands by searching for them in your system's `PATH` with proper error handling for cases like command not found or permission issues.
@@ -36,6 +45,7 @@ This project is a lightweight command-line shell emulator written in Python. It 
   - `subprocess`
   - `shlex`
   - `readline`
+  - `re`
 
 ## Usage
 
@@ -44,3 +54,20 @@ This project is a lightweight command-line shell emulator written in Python. It 
    ```bash
    python main.py
    ```
+2. **Environment Variable Examples**:
+
+  - **Set a variable**:
+    ```bash
+    export NAME=World
+    ```
+
+  - **Use variables in commands**:
+    ```bash
+    echo "Hello $NAME"
+    ```
+
+  - **Check exit codes**:
+    ```bash
+    ls /nonexistent
+    echo $?
+    ```
