@@ -1,11 +1,19 @@
 # Python Shell Emulator
 
-This project is a lightweight command-line shell emulator written in Python. It implements basic command execution, tab completion, and redirection features similar to those found in traditional Unix shells.
+This project is a lightweight command-line shell emulator written in Python. It implements basic command execution, tab completion, redirection features, and command history similar to those found in traditional Unix shells.
 
 ## Features
 
 - **Tab Completion**:  
   Automatically completes both built-in commands and external executables found in your system's `PATH`.
+
+- **Command History**:  
+  - Tracks commands entered during the current and previous sessions
+  - Navigate through history using up/down arrow keys
+  - View command history with the `history` command
+  - Limit history display with `history N` (shows last N commands)
+  - History persists between shell sessions in `~/.python_shell_history`
+  - Supports redirection of history output to files
 
 - **Built-in Commands**:  
   Supports a handful of common built-ins including:
@@ -15,6 +23,7 @@ This project is a lightweight command-line shell emulator written in Python. It 
   - `pwd`: Prints the current working directory.
   - `echo`: Displays text on the terminal.
   - `export`: Sets or displays environment variables.
+  - `history`: Displays command history.
 
 - **Command Redirection**:  
   Basic support for redirecting input, output, and errors:
@@ -46,6 +55,7 @@ This project is a lightweight command-line shell emulator written in Python. It 
   - `shlex`
   - `readline`
   - `re`
+  - `atexit`
 
 ## Usage
 
@@ -54,20 +64,40 @@ This project is a lightweight command-line shell emulator written in Python. It 
    ```bash
    python main.py
    ```
+
 2. **Environment Variable Examples**:
 
-  - **Set a variable**:
-    ```bash
-    export NAME=World
-    ```
+   - **Set a variable**:
+     ```bash
+     export NAME=World
+     ```
 
-  - **Use variables in commands**:
-    ```bash
-    echo "Hello $NAME"
-    ```
+   - **Use variables in commands**:
+     ```bash
+     echo "Hello $NAME"
+     ```
 
-  - **Check exit codes**:
-    ```bash
-    ls /nonexistent
-    echo $?
-    ```
+   - **Check exit codes**:
+     ```bash
+     ls /nonexistent
+     echo $?
+     ```
+
+3. **Command History Examples**:
+
+   - **View all command history**:
+     ```bash
+     history
+     ```
+
+   - **View last 5 commands**:
+     ```bash
+     history 5
+     ```
+
+   - **Save history to a file**:
+     ```bash
+     history > my_history.txt
+     ```
+
+   - **Navigate history**: Press up/down arrow keys to cycle through previous commands
