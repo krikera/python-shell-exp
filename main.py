@@ -5,6 +5,7 @@ import subprocess
 import shlex
 import readline
 import re
+import atexit
 
 SHELL_BUILTINS = [
     "alias", "bg", "bind", "break", "cd", "command", "continue", "declare",
@@ -19,6 +20,18 @@ last_tab_prefix = ""
 tab_pressed_once = False
 shell_variables = dict(os.environ)
 last_exit_code = 0
+history_file = os.path.expanduser("~/.python_shell_history")
+history_size = 1024
+
+def setup_history():
+    """Set up command history with readline"""
+    try:
+        readline.read_history_file(history_file)
+        readline.set_history_length(history_size)
+    except FileNotFoundError:
+        open(history_file, 'a').close()
+    
+    atexit.register(readline.write_history_file, history_file)
 
 def get_matching_executables(text):
     """Get all executables in PATH that match the given prefix."""
@@ -164,11 +177,13 @@ def parse_input(input_text):
     
     return result
 
-readline.set_completer(completer)
-readline.parse_and_bind("tab: complete")
-
 def main():
     global shell_variables, last_exit_code
+    
+    setup_history()
+    
+    readline.set_completer(completer)
+    readline.parse_and_bind("tab: complete")
     
     while True:
         sys.stdout.write("$ ")
@@ -179,6 +194,9 @@ def main():
             break
         if not inputT:
             continue
+            
+        if inputT.strip():
+            readline.add_history(inputT)
 
         try:
             parts = shlex.split(inputT)
@@ -250,7 +268,33 @@ def main():
             cmd_name = command[0]
             args = command[1:]
             
-            if cmd_name == "export":
+            if cmd_name == "history":
+                if len(args) == 1 and args[0].isdigit():
+                    num_entries = min(int(args[0]), readline.get_current_history_length())
+                else:
+                    num_entries = readline.get_current_history_length()
+                
+                output_lines = []
+                for i in range(1, num_entries + 1):
+                    idx = readline.get_current_history_length() - num_entries + i
+                    if idx > 0:
+                        output_lines.append(f"{idx:5d}  {readline.get_history_item(idx)}")
+                
+                output_text = "\n".join(output_lines) + "\n" if output_lines else ""
+                
+                if stdout_redirection:
+                    with open(stdout_redirection, stdout_mode) as f:
+                        f.write(output_text)
+                else:
+                    sys.stdout.write(output_text)
+                
+                if stderr_redirection:
+                    with open(stderr_redirection, stderr_mode) as f:
+                        pass
+                
+                last_exit_code = 0
+                
+            elif cmd_name == "export":
                 if not args:
                     
                     output_text = "\n".join([f"{key}={value}" for key, value in sorted(shell_variables.items())])
