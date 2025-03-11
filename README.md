@@ -1,6 +1,6 @@
 # Python Shell Emulator
 
-This project is a lightweight command-line shell emulator written in Python. It implements basic command execution, tab completion, redirection features, and command history similar to those found in traditional Unix shells.
+This project is a lightweight command-line shell emulator written in Python. It implements basic command execution, tab completion, redirection features, command history, and pipeline functionality similar to those found in traditional Unix shells.
 
 ## Features
 
@@ -32,6 +32,13 @@ This project is a lightweight command-line shell emulator written in Python. It 
   - `2>`: Redirect standard error to a file (write mode).
   - `2>>`: Redirect standard error to a file (append mode).
   - `<`: Redirect standard input from a file.
+
+- **Pipes**:  
+  Connect multiple commands together with the pipe operator (`|`):
+  - Redirect the output of one command as input to another
+  - Chain multiple commands together in a pipeline
+  - Combine pipes with redirections for complex command sequences
+  - Both built-in and external commands support piping
 
 - **Environment Variables**:  
   Full support for environment variable management:
@@ -101,3 +108,30 @@ This project is a lightweight command-line shell emulator written in Python. It 
      ```
 
    - **Navigate history**: Press up/down arrow keys to cycle through previous commands
+
+4. **Pipe Examples**:
+
+   - **Basic pipe to filter output**:
+     ```bash
+     ls | grep .py
+     ```
+
+   - **Chain multiple commands**:
+     ```bash
+     ls -la | grep "^d" | sort
+     ```
+
+   - **Combine pipes with redirections**:
+     ```bash
+     ls | grep .txt > text_files.txt
+     ```
+
+   - **Use built-in commands in pipes**:
+     ```bash
+     echo "Hello World" | grep "Hello"
+     ```
+
+   - **Count items with pipes**:
+     ```bash
+     ls | wc -l
+     ```

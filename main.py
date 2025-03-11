@@ -177,6 +177,346 @@ def parse_input(input_text):
     
     return result
 
+def execute_builtin(cmd_name, args, stdout_redirection=None, stdout_mode=None,
+                   stderr_redirection=None, stderr_mode=None, stdin_redirection=None):
+    """Execute a built-in command and return its output."""
+    global shell_variables, last_exit_code
+    
+    output = ""
+    
+    if cmd_name == "history":
+        if len(args) == 1 and args[0].isdigit():
+            num_entries = min(int(args[0]), readline.get_current_history_length())
+        else:
+            num_entries = readline.get_current_history_length()
+        
+        output_lines = []
+        for i in range(1, num_entries + 1):
+            idx = readline.get_current_history_length() - num_entries + i
+            if idx > 0:
+                output_lines.append(f"{idx:5d}  {readline.get_history_item(idx)}")
+        
+        output = "\n".join(output_lines) + "\n" if output_lines else ""
+        
+        if stdout_redirection:
+            with open(stdout_redirection, stdout_mode) as f:
+                f.write(output)
+        else:
+            sys.stdout.write(output)
+        
+        if stderr_redirection:
+            with open(stderr_redirection, stderr_mode) as f:
+                pass
+        
+        last_exit_code = 0
+        
+    elif cmd_name == "export":
+        if not args:
+            output = "\n".join([f"{key}={value}" for key, value in sorted(shell_variables.items())])
+            if stdout_redirection:
+                with open(stdout_redirection, stdout_mode) as f:
+                    f.write(output + "\n")
+            else:
+                sys.stdout.write(output + "\n")
+            
+            output += "\n"
+        else:
+            for arg in args:
+                if "=" in arg:
+                    key, value = arg.split("=", 1)
+                    shell_variables[key] = value
+                    os.environ[key] = value
+        
+        if stderr_redirection:
+            with open(stderr_redirection, stderr_mode) as f:
+                pass
+        
+        last_exit_code = 0
+        
+    elif cmd_name == "type":
+        if not args:
+            error_msg = "type: missing operand\n"
+            if stderr_redirection:
+                with open(stderr_redirection, stderr_mode) as f:
+                    f.write(error_msg)
+            else:
+                sys.stderr.write(error_msg)
+            if stdout_redirection:
+                with open(stdout_redirection, stdout_mode) as f:
+                    pass
+            last_exit_code = 1
+        else:
+            shell_built_in = args[0]
+            if shell_built_in in SHELL_BUILTINS:
+                output = f"{shell_built_in} is a shell builtin\n"
+            else:
+                path_to_cmd = shutil.which(shell_built_in)
+                if path_to_cmd:
+                    output = f"{shell_built_in} is {path_to_cmd}\n"
+                else:
+                    output = f"{shell_built_in}: not found\n"
+                    last_exit_code = 1
+                    
+            if stdout_redirection:
+                with open(stdout_redirection, stdout_mode) as f:
+                    f.write(output)
+            else:
+                sys.stdout.write(output)
+                
+            if stderr_redirection:
+                with open(stderr_redirection, stderr_mode) as f:
+                    pass
+                    
+            if "not found" not in output:
+                last_exit_code = 0
+                
+    elif cmd_name == "cd":
+        try:
+            target_dir = os.path.expanduser(args[0]) if args else os.path.expanduser("~")
+            os.chdir(target_dir)
+            shell_variables["PWD"] = os.getcwd()
+            os.environ["PWD"] = os.getcwd()
+            if stdout_redirection:
+                with open(stdout_redirection, stdout_mode) as f:
+                    pass
+            if stderr_redirection:
+                with open(stderr_redirection, stderr_mode) as f:
+                    pass
+            last_exit_code = 0
+        except FileNotFoundError:
+            error_msg = f"cd: {args[0]}: No such file or directory\n"
+            if stderr_redirection:
+                with open(stderr_redirection, stderr_mode) as f:
+                    f.write(error_msg)
+            else:
+                sys.stderr.write(error_msg)
+            if stdout_redirection:
+                with open(stdout_redirection, stdout_mode) as f:
+                    pass
+            last_exit_code = 1
+            
+    elif cmd_name == "exit":
+        exit_code = 0
+        if args:
+            try:
+                exit_code = int(args[0])
+            except ValueError:
+                error_msg = "exit: invalid argument\n"
+                if stderr_redirection:
+                    with open(stderr_redirection, stderr_mode) as f:
+                        f.write(error_msg)
+                else:
+                    sys.stderr.write(error_msg)
+                if stdout_redirection:
+                    with open(stdout_redirection, stdout_mode) as f:
+                        pass
+                last_exit_code = 1
+                return ""
+        if stdout_redirection:
+            with open(stdout_redirection, stdout_mode) as f:
+                pass
+        if stderr_redirection:
+            with open(stderr_redirection, stderr_mode) as f:
+                pass
+        raise SystemExit(exit_code)
+        
+    elif cmd_name == "pwd":
+        output = os.getcwd() + "\n"
+        if stdout_redirection:
+            with open(stdout_redirection, stdout_mode) as f:
+                f.write(output)
+        else:
+            sys.stdout.write(output)
+        if stderr_redirection:
+            with open(stderr_redirection, stderr_mode) as f:
+                pass
+        last_exit_code = 0
+        
+    elif cmd_name == "echo":
+        output = " ".join(args) + "\n"
+        if stdout_redirection:
+            with open(stdout_redirection, stdout_mode) as f:
+                f.write(output)
+        else:
+            sys.stdout.write(output)
+        if stderr_redirection:
+            with open(stderr_redirection, stderr_mode) as f:
+                pass
+        last_exit_code = 0
+        
+    return output
+
+def parse_command_tokens(tokens):
+    """Parse a list of tokens into a command with redirections."""
+    command = []
+    stdout_redirection = None
+    stdout_mode = None
+    stderr_redirection = None
+    stderr_mode = None
+    stdin_redirection = None
+    
+    i = 0
+    while i < len(tokens):
+        if tokens[i] in (">", "1>"):
+            if i + 1 < len(tokens):
+                stdout_redirection = tokens[i + 1]
+                stdout_mode = "w"
+                i += 1
+            else:
+                print("Syntax error: missing file for > or 1>")
+                return None, None, None, None, None, None
+        elif tokens[i] in (">>", "1>>"):
+            if i + 1 < len(tokens):
+                stdout_redirection = tokens[i + 1]
+                stdout_mode = "a"
+                i += 1
+            else:
+                print("Syntax error: missing file for >> or 1>>")
+                return None, None, None, None, None, None
+        elif tokens[i] == "2>":
+            if i + 1 < len(tokens):
+                stderr_redirection = tokens[i + 1]
+                stderr_mode = "w"
+                i += 1
+            else:
+                print("Syntax error: missing file for 2>")
+                return None, None, None, None, None, None
+        elif tokens[i] == "2>>":
+            if i + 1 < len(tokens):
+                stderr_redirection = tokens[i + 1]
+                stderr_mode = "a"
+                i += 1
+            else:
+                print("Syntax error: missing file for 2>>")
+                return None, None, None, None, None, None
+        elif tokens[i] == "<":
+            if i + 1 < len(tokens):
+                stdin_redirection = tokens[i + 1]
+                i += 1
+            else:
+                print("Syntax error: missing file for <")
+                return None, None, None, None, None, None
+        else:
+            command.append(tokens[i])
+        i += 1
+    
+    return command, stdout_redirection, stdout_mode, stderr_redirection, stderr_mode, stdin_redirection
+
+def execute_command(tokens, input_data=None):
+    """Execute a command with possible redirections and return its output."""
+    global shell_variables, last_exit_code
+    
+    cmd_tokens, stdout_redirection, stdout_mode, stderr_redirection, stderr_mode, stdin_redirection = parse_command_tokens(tokens)
+    
+    if not cmd_tokens:
+        return None
+    
+    cmd_name = cmd_tokens[0]
+    args = cmd_tokens[1:]
+    
+    if cmd_name in SHELL_BUILTINS:
+        if input_data is not None:
+            # TODO: Handle input data for builtins if needed
+            pass
+        
+        return execute_builtin(cmd_name, args, stdout_redirection, stdout_mode, 
+                               stderr_redirection, stderr_mode, stdin_redirection)
+    
+    path_to_cmd = shutil.which(cmd_name)
+    if path_to_cmd:
+        try:
+            if stdout_redirection:
+                stdout_target = open(stdout_redirection, stdout_mode)
+            else:
+                stdout_target = subprocess.PIPE
+            
+            if stderr_redirection:
+                stderr_target = open(stderr_redirection, stderr_mode)
+            else:
+                stderr_target = subprocess.PIPE
+            
+            if input_data is not None:
+                stdin_target = subprocess.PIPE
+            elif stdin_redirection:
+                stdin_target = open(stdin_redirection, 'r')
+            else:
+                stdin_target = None
+            
+            process = subprocess.Popen(
+                [cmd_name] + args,
+                stdout=stdout_target,
+                stderr=stderr_target,
+                stdin=stdin_target,
+                text=True,
+                env=shell_variables
+            )
+            
+            stdout_data, stderr_data = process.communicate(input=input_data)
+            
+            if stdout_redirection and stdout_target != subprocess.PIPE:
+                stdout_target.close()
+            if stderr_redirection and stderr_target != subprocess.PIPE:
+                stderr_target.close()
+            if stdin_redirection and stdin_target != subprocess.PIPE:
+                stdin_target.close()
+            
+            last_exit_code = process.returncode
+            return stdout_data
+            
+        except FileNotFoundError:
+            error_msg = f"{cmd_name}: not found\n"
+            if stderr_redirection:
+                with open(stderr_redirection, stderr_mode) as f:
+                    f.write(error_msg)
+            else:
+                sys.stderr.write(error_msg)
+            if stdout_redirection:
+                with open(stdout_redirection, stdout_mode) as f:
+                    pass
+            last_exit_code = 127
+            
+        except PermissionError:
+            error_msg = f"{cmd_name}: permission denied\n"
+            if stderr_redirection:
+                with open(stderr_redirection, stderr_mode) as f:
+                    f.write(error_msg)
+            else:
+                sys.stderr.write(error_msg)
+            if stdout_redirection:
+                with open(stdout_redirection, stdout_mode) as f:
+                    pass
+            last_exit_code = 126
+    else:
+        error_msg = f"{cmd_name}: command not found\n"
+        if stderr_redirection:
+            with open(stderr_redirection, stderr_mode) as f:
+                f.write(error_msg)
+        else:
+            sys.stderr.write(error_msg)
+        if stdout_redirection:
+            with open(stdout_redirection, stdout_mode) as f:
+                pass
+        last_exit_code = 127
+    
+    return None
+
+def execute_pipeline(commands):
+    """Execute a pipeline of commands."""
+    if not commands:
+        return
+    
+    if len(commands) == 1:
+        execute_command(commands[0])
+        return
+    
+    first_output = execute_command(commands[0])
+    
+    current_input = first_output
+    for i in range(1, len(commands) - 1):
+        current_input = execute_command(commands[i], current_input)
+    
+    execute_command(commands[-1], current_input)
+
 def main():
     global shell_variables, last_exit_code
     
@@ -199,284 +539,37 @@ def main():
             readline.add_history(inputT)
 
         try:
+            commands = []
+            current_command = []
+            in_single_quote = False
+            in_double_quote = False
+            i = 0
+            
             parts = shlex.split(inputT)
             
             expanded_parts = []
             for part in parts:
                 expanded_parts.append(expand_variables(part))
             parts = expanded_parts
+            
+            current_command = []
+            for part in parts:
+                if part == "|" and not in_single_quote and not in_double_quote:
+                    if current_command:
+                        commands.append(current_command)
+                        current_command = []
+                else:
+                    current_command.append(part)
+            
+            if current_command:
+                commands.append(current_command)
+                
+            if commands:
+                execute_pipeline(commands)
+                
         except ValueError as e:
             print(f"Error parsing command: {e}")
             continue
-            
-        if not parts:
-            continue
-            
-        command = []
-        stdout_redirection = None
-        stdout_mode = None
-        stderr_redirection = None
-        stderr_mode = None
-        stdin_redirection = None 
-        i = 0
-        while i < len(parts):
-            if parts[i] in (">", "1>"):
-                if i + 1 < len(parts):
-                    stdout_redirection = parts[i + 1]
-                    stdout_mode = "w"
-                    i += 1
-                else:
-                    print("Syntax error: missing file for > or 1>")
-                    break
-            elif parts[i] in (">>", "1>>"):
-                if i + 1 < len(parts):
-                    stdout_redirection = parts[i + 1]
-                    stdout_mode = "a"
-                    i += 1
-                else:
-                    print("Syntax error: missing file for >> or 1>>")
-                    break
-            elif parts[i] == "2>":
-                if i + 1 < len(parts):
-                    stderr_redirection = parts[i + 1]
-                    stderr_mode = "w"
-                    i += 1
-                else:
-                    print("Syntax error: missing file for 2>")
-                    break
-            elif parts[i] == "2>>":
-                if i + 1 < len(parts):
-                    stderr_redirection = parts[i + 1]
-                    stderr_mode = "a"
-                    i += 1
-                else:
-                    print("Syntax error: missing file for 2>>")
-                    break
-            elif parts[i] == "<": 
-                if i + 1 < len(parts):
-                    stdin_redirection = parts[i + 1]
-                    i += 1
-                else:
-                    print("Syntax error: missing file for <")
-                    break
-            else:
-                command.append(parts[i])
-            i += 1
-        else:
-            if not command:
-                continue
-            cmd_name = command[0]
-            args = command[1:]
-            
-            if cmd_name == "history":
-                if len(args) == 1 and args[0].isdigit():
-                    num_entries = min(int(args[0]), readline.get_current_history_length())
-                else:
-                    num_entries = readline.get_current_history_length()
-                
-                output_lines = []
-                for i in range(1, num_entries + 1):
-                    idx = readline.get_current_history_length() - num_entries + i
-                    if idx > 0:
-                        output_lines.append(f"{idx:5d}  {readline.get_history_item(idx)}")
-                
-                output_text = "\n".join(output_lines) + "\n" if output_lines else ""
-                
-                if stdout_redirection:
-                    with open(stdout_redirection, stdout_mode) as f:
-                        f.write(output_text)
-                else:
-                    sys.stdout.write(output_text)
-                
-                if stderr_redirection:
-                    with open(stderr_redirection, stderr_mode) as f:
-                        pass
-                
-                last_exit_code = 0
-                
-            elif cmd_name == "export":
-                if not args:
-                    
-                    output_text = "\n".join([f"{key}={value}" for key, value in sorted(shell_variables.items())])
-                    if stdout_redirection:
-                        with open(stdout_redirection, stdout_mode) as f:
-                            f.write(output_text + "\n")
-                    else:
-                        sys.stdout.write(output_text + "\n")
-                else:
-                    for arg in args:
-                        if "=" in arg:
-                            key, value = arg.split("=", 1)
-                            shell_variables[key] = value
-                            os.environ[key] = value
-                if stderr_redirection:
-                    with open(stderr_redirection, stderr_mode) as f:
-                        pass
-                last_exit_code = 0
-            elif cmd_name == "type":
-                if not args:
-                    error_msg = "type: missing operand\n"
-                    if stderr_redirection:
-                        with open(stderr_redirection, stderr_mode) as f:
-                            f.write(error_msg)
-                    else:
-                        sys.stderr.write(error_msg)
-                    if stdout_redirection:
-                        with open(stdout_redirection, stdout_mode) as f:
-                            pass
-                    last_exit_code = 1
-                else:
-                    shell_built_in = args[0]
-                    if shell_built_in in SHELL_BUILTINS:
-                        output_text = f"{shell_built_in} is a shell builtin\n"
-                    else:
-                        path_to_cmd = shutil.which(shell_built_in)
-                        if path_to_cmd:
-                            output_text = f"{shell_built_in} is {path_to_cmd}\n"
-                        else:
-                            output_text = f"{shell_built_in}: not found\n"
-                            last_exit_code = 1
-                    if stdout_redirection:
-                        with open(stdout_redirection, stdout_mode) as f:
-                            f.write(output_text)
-                    else:
-                        sys.stdout.write(output_text)
-                    if stderr_redirection:
-                        with open(stderr_redirection, stderr_mode) as f:
-                            pass
-                    if "not found" not in output_text:
-                        last_exit_code = 0
-            elif cmd_name == "cd":
-                try:
-                    target_dir = os.path.expanduser(args[0]) if args else os.path.expanduser("~")
-                    os.chdir(target_dir)
-                    shell_variables["PWD"] = os.getcwd()
-                    os.environ["PWD"] = os.getcwd()
-                    if stdout_redirection:
-                        with open(stdout_redirection, stdout_mode) as f:
-                            pass
-                    if stderr_redirection:
-                        with open(stderr_redirection, stderr_mode) as f:
-                            pass
-                    last_exit_code = 0
-                except FileNotFoundError:
-                    error_msg = f"cd: {args[0]}: No such file or directory\n"
-                    if stderr_redirection:
-                        with open(stderr_redirection, stderr_mode) as f:
-                            f.write(error_msg)
-                    else:
-                        sys.stderr.write(error_msg)
-                    if stdout_redirection:
-                        with open(stdout_redirection, stdout_mode) as f:
-                            pass
-                    last_exit_code = 1
-            elif cmd_name == "exit":
-                exit_code = 0
-                if args:
-                    try:
-                        exit_code = int(args[0])
-                    except ValueError:
-                        error_msg = "exit: invalid argument\n"
-                        if stderr_redirection:
-                            with open(stderr_redirection, stderr_mode) as f:
-                                f.write(error_msg)
-                        else:
-                            sys.stderr.write(error_msg)
-                        if stdout_redirection:
-                            with open(stdout_redirection, stdout_mode) as f:
-                                pass
-                        last_exit_code = 1
-                        continue
-                if stdout_redirection:
-                    with open(stdout_redirection, stdout_mode) as f:
-                        pass
-                if stderr_redirection:
-                    with open(stderr_redirection, stderr_mode) as f:
-                        pass
-                raise SystemExit(exit_code)
-            elif cmd_name == "pwd":
-                output_text = os.getcwd() + "\n"
-                if stdout_redirection:
-                    with open(stdout_redirection, stdout_mode) as f:
-                        f.write(output_text)
-                else:
-                    sys.stdout.write(output_text)
-                if stderr_redirection:
-                    with open(stderr_redirection, stderr_mode) as f:
-                        pass
-                last_exit_code = 0
-            elif cmd_name == "echo":
-                output_text = " ".join(args) + "\n"
-                if stdout_redirection:
-                    with open(stdout_redirection, stdout_mode) as f:
-                        f.write(output_text)
-                else:
-                    sys.stdout.write(output_text)
-                if stderr_redirection:
-                    with open(stderr_redirection, stderr_mode) as f:
-                        pass
-                last_exit_code = 0
-            else:
-                path_to_cmd = shutil.which(cmd_name)
-                if path_to_cmd:
-                    stdout_target = None
-                    stderr_target = None
-                    stdin_target = None 
-                    try:
-                        if stdout_redirection:
-                            stdout_target = open(stdout_redirection, stdout_mode)
-                        if stderr_redirection:
-                            stderr_target = open(stderr_redirection, stderr_mode)
-                        if stdin_redirection:
-                            stdin_target = open(stdin_redirection, 'r')
-                        process = subprocess.run(
-                            [cmd_name] + args,
-                            stdout=stdout_target,
-                            stderr=stderr_target,
-                            stdin=stdin_target,
-                            env=shell_variables  
-                        )
-                        last_exit_code = process.returncode
-                    except FileNotFoundError:
-                        error_msg = f"{cmd_name}: not found\n"
-                        if stderr_redirection:
-                            with open(stderr_redirection, stderr_mode) as f:
-                                f.write(error_msg)
-                        else:
-                            sys.stderr.write(error_msg)
-                        if stdout_redirection:
-                            with open(stdout_redirection, stdout_mode) as f:
-                                pass
-                        last_exit_code = 127
-                    except PermissionError:
-                        error_msg = f"{cmd_name}: permission denied\n"
-                        if stderr_redirection:
-                            with open(stderr_redirection, stderr_mode) as f:
-                                f.write(error_msg)
-                        else:
-                            sys.stderr.write(error_msg)
-                        if stdout_redirection:
-                            with open(stdout_redirection, stdout_mode) as f:
-                                pass
-                        last_exit_code = 126
-                    finally:
-                        if stdout_target:
-                            stdout_target.close()
-                        if stderr_target:
-                            stderr_target.close()
-                        if stdin_target: 
-                            stdin_target.close()
-                else:
-                    error_msg = f"{cmd_name}: command not found\n"
-                    if stderr_redirection:
-                        with open(stderr_redirection, stderr_mode) as f:
-                            f.write(error_msg)
-                    else:
-                        sys.stderr.write(error_msg)
-                    if stdout_redirection:
-                        with open(stdout_redirection, stdout_mode) as f:
-                            pass
-                    last_exit_code = 127
 
 if __name__ == "__main__":
     main()
