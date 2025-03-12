@@ -91,6 +91,26 @@ def completer(text, state):
     tab_pressed_once = False
     return None
 
+def expand_tilde(text):
+    """Expand tilde in the given text."""
+    if text == "~":
+        return os.path.expanduser("~")
+    elif text.startswith("~/"):
+        return os.path.expanduser("~") + text[1:]
+    elif text.startswith("~"):
+        parts = text[1:].split("/", 1)
+        username = parts[0]
+        rest = parts[1] if len(parts) > 1 else ""
+        try:
+            home_dir = os.path.expanduser(f"~{username}")
+            if home_dir != f"~{username}": 
+                if rest:
+                    return f"{home_dir}/{rest}"
+                return home_dir
+        except:
+            pass
+    return text
+
 def expand_variables(text):
     """Expand environment variables in the given text."""
     global shell_variables, last_exit_code
@@ -272,7 +292,7 @@ def execute_builtin(cmd_name, args, stdout_redirection=None, stdout_mode=None,
                 
     elif cmd_name == "cd":
         try:
-            target_dir = os.path.expanduser(args[0]) if args else os.path.expanduser("~")
+            target_dir = args[0] if args else "~"
             os.chdir(target_dir)
             shell_variables["PWD"] = os.getcwd()
             os.environ["PWD"] = os.getcwd()
@@ -549,7 +569,9 @@ def main():
             
             expanded_parts = []
             for part in parts:
-                expanded_parts.append(expand_variables(part))
+                expanded_part = expand_variables(part)
+                expanded_part = expand_tilde(expanded_part)
+                expanded_parts.append(expanded_part)
             parts = expanded_parts
             
             current_command = []
