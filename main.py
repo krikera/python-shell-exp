@@ -16,6 +16,24 @@ SHELL_BUILTINS = [
     "umask", "unalias", "unset", "wait"
 ]
 
+HELP_TEXT = {
+    "cd": "cd [directory]\n\nChange the current directory to the specified directory.\nIf no directory is specified, change to the home directory.",
+    
+    "echo": "echo [arguments...]\n\nWrite arguments to standard output.\nDisplays the arguments separated by a single space and followed by a newline.",
+    
+    "exit": "exit [n]\n\nExit the shell with status n. If n is omitted, the exit status is that of the last command executed.",
+    
+    "export": "export [name[=value] ...]\n\nSet environment variables and mark them for export to child processes.\n\nWithout arguments, lists all exported variables in the format 'name=value'.",
+    
+    "help": "help [command]\n\nDisplay information about built-in commands.\n\nIf command is specified, gives detailed help on that command.\nOtherwise, lists available help topics.",
+    
+    "history": "history [n]\n\nDisplay the command history list with line numbers.\n\nAn argument of n lists only the last n lines.",
+    
+    "pwd": "pwd\n\nPrint the absolute pathname of the current working directory.",
+    
+    "type": "type [command]\n\nDisplay information about command type.\n\nIndicate how the command would be interpreted if used as a command name."
+}
+
 last_tab_prefix = ""
 tab_pressed_once = False
 shell_variables = dict(os.environ)
@@ -204,7 +222,35 @@ def execute_builtin(cmd_name, args, stdout_redirection=None, stdout_mode=None,
     
     output = ""
     
-    if cmd_name == "history":
+    if cmd_name == "help":
+        if not args:
+            output = "Shell built-in commands:\n\n"
+            commands = sorted(HELP_TEXT.keys())
+            command_list = "\n".join([f"  {cmd}" for cmd in commands])
+            output += command_list + "\n\n"
+            output += "Type 'help command' to find out more about the function of a specific command.\n"
+        else:
+            command = args[0]
+            if command in HELP_TEXT:
+                output = HELP_TEXT[command] + "\n"
+            else:
+                error_msg = f"help: no help topics match '{command}'.\n"
+                if stderr_redirection:
+                    with open(stderr_redirection, stderr_mode) as f:
+                        f.write(error_msg)
+                else:
+                    sys.stderr.write(error_msg)
+                last_exit_code = 1
+                return ""
+        
+        if stdout_redirection:
+            with open(stdout_redirection, stdout_mode) as f:
+                f.write(output)
+        else:
+            sys.stdout.write(output)
+        
+        last_exit_code = 0
+    elif cmd_name == "history":
         if len(args) == 1 and args[0].isdigit():
             num_entries = min(int(args[0]), readline.get_current_history_length())
         else:

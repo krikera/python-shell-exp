@@ -24,6 +24,7 @@ This project is a lightweight command-line shell emulator written in Python. It 
   - `echo`: Displays text on the terminal.
   - `export`: Sets or displays environment variables.
   - `history`: Displays command history.
+  - `help`: Displays information about built-in commands.
 
 - **Command Redirection**:  
   Basic support for redirecting input, output, and errors:
@@ -47,6 +48,20 @@ This project is a lightweight command-line shell emulator written in Python. It 
   - Access special variables like `$$` (process ID) and `$?` (exit code).
   - Variables persist throughout the shell session.
   - View all variables using `export` without argument.
+
+- **Tilde Expansion**:  
+  Support for using `~` as a shortcut:
+  - Standalone `~` expands to the user's home directory
+  - Paths starting with `~/` expand to paths relative to home
+  - `~username/` expands to another user's home directory
+  - Works in all contexts where paths are expected
+
+- **Help System**:  
+  Documentation for built-in commands:
+  - `help` lists all available built-in commands
+  - `help command` provides detailed help on a specific command
+  - Includes syntax, description, and usage information
+  - Supports redirection and can be used in pipes
 
 - **External Command Execution**:  
   Executes external commands by searching for them in your system's `PATH` with proper error handling for cases like command not found or permission issues.
@@ -134,4 +149,44 @@ This project is a lightweight command-line shell emulator written in Python. It 
    - **Count items with pipes**:
      ```bash
      ls | wc -l
+     ```
+
+5. **Tilde Expansion Examples**:
+
+   - **Navigate to home directory**:
+     ```bash
+     cd ~
+     ```
+
+   - **List files in home subdirectory**:
+     ```bash
+     ls ~/Documents
+     ```
+
+   - **Create file in home directory**:
+     ```bash
+     echo "test" > ~/testfile.txt
+     ```
+
+6. **Help Examples**:
+
+   - **View available commands**:
+     ```bash
+     help
+     ```
+
+   - **Get help on specific command**:
+     ```bash
+     help cd
+     help export
+     ```
+
+   - **Save command help to file**:
+     ```bash
+     help echo > echo_help.txt
+     ```
+
+   - **Search through command help**:
+     ```bash
+     help | grep directory
      ```
